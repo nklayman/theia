@@ -168,7 +168,7 @@ export function createMonacoConfigurationService(container: interfaces.Container
     };
 
     const initFromConfiguration = debounce(() => {
-        const event = new monaco.services.ConfigurationChangeEvent();
+        const event = new monaco.services.ConfigurationChangeEvent(); // todo: align ConfigurationChangeEvent with VS Code
         event._source = 6 /* DEFAULT */;
         service._onDidChangeConfiguration.fire(event);
     });
@@ -179,7 +179,7 @@ export function createMonacoConfigurationService(container: interfaces.Container
     });
     configurations.onDidChangeConfiguration(e => {
         if (e.affectedSections) {
-            const event = new monaco.services.ConfigurationChangeEvent();
+            const event = new monaco.services.ConfigurationChangeEvent(); // todo: align ConfigurationChangeEvent with VS Code
             event.change(e.affectedSections);
             service._onDidChangeConfiguration.fire(event);
         }

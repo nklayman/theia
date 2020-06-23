@@ -465,7 +465,7 @@ export class MonacoEditorProvider {
 
                 if (referencesController._widget) {
                     referencesController._widget.show(range);
-                    referencesController._widget.focus();
+                    referencesController._widget.focusOnReferenceTree();
                 }
 
             }, (e: any) => {
