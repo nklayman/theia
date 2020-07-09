@@ -616,15 +616,43 @@ declare module monaco.services {
     // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/platform/configuration/common/configurationModels.ts#L337
     export interface Configuration {
         getValue(section: string | undefined, overrides: any, workspace: any | undefined): any;
+        toData(): any;
     }
 
-    //*************** todo: align ConfigurationChangeEvent with VS Code *************
-    export class ConfigurationChangeEvent {
-        // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/platform/configuration/common/configuration.ts#L30-L37
-        _source?: number;
+    // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/platform/configuration/common/configuration.ts#L30-L37
+    export const enum ConfigurationTarget {
+        USER = 1,
+        USER_LOCAL,
+        USER_REMOTE,
+        WORKSPACE,
+        WORKSPACE_FOLDER,
+        DEFAULT,
+        MEMORY
+    }
 
-        // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/platform/configuration/common/configurationModels.ts#L620
-        change(keys: string[]): ConfigurationChangeEvent;
+    // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/platform/configuration/common/configuration.ts#L51
+    export interface IConfigurationChange {
+        keys: string[];
+        overrides: [string, string[]][];
+    }
+
+    // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/platform/configuration/common/configurationModels.ts#L706
+    export class ConfigurationChangeEvent {
+        constructor(
+            change: IConfigurationChange,
+            previous: { workspace?: any, data: any } | undefined,
+            currentConfiguraiton: Configuration,
+            currentWorkspace?: any);
+
+        source: ConfigurationTarget;
+        affectsConfiguration(section: string, overrides?: IConfigurationOverrides): boolean;
+        previousConfiguration(): Configuration | undefined;
+    }
+
+    // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/platform/configuration/common/configuration.ts#L25
+    export interface IConfigurationOverrides {
+        overrideIdentifier?: string | null;
+        resource?: monaco.Uri | null;
     }
 
     // https://github.com/theia-ide/vscode/blob/standalone/0.20.x/src/vs/editor/standalone/browser/simpleServices.ts#L434
@@ -632,7 +660,6 @@ declare module monaco.services {
         _onDidChangeConfiguration: monaco.Emitter<ConfigurationChangeEvent>;
         _configuration: Configuration;
     }
-    //*************** todo: align ConfigurationChangeEvent with VS Code *************
 
     // https://github.com/microsoft/vscode/blob/standalone/0.20.x/src/vs/editor/common/services/textResourceConfigurationService.ts#L71
     export interface ITextResourcePropertiesService {

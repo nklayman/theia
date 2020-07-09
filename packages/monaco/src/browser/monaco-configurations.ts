@@ -20,10 +20,11 @@ import { injectable, inject, postConstruct } from 'inversify';
 import { JSONValue } from '@phosphor/coreutils';
 import { Configurations, ConfigurationChangeEvent, WorkspaceConfiguration } from 'monaco-languageclient';
 import { Event, Emitter } from '@theia/core/lib/common';
-import { PreferenceService, PreferenceChanges, PreferenceSchemaProvider, createPreferenceProxy } from '@theia/core/lib/browser';
+import { PreferenceService, PreferenceChanges, PreferenceSchemaProvider, createPreferenceProxy, PreferenceScope } from '@theia/core/lib/browser';
 
 export interface MonacoConfigurationChangeEvent extends ConfigurationChangeEvent {
-    affectedSections?: string[]
+    affectedSections?: string[];
+    target?: monaco.services.ConfigurationTarget;
 }
 
 @injectable()
@@ -41,13 +42,23 @@ export class MonacoConfigurations implements Configurations {
     @postConstruct()
     protected init(): void {
         this.reconcileData();
-        this.preferences.onPreferencesChanged(changes => this.reconcileData(changes));
+        this.preferences.onPreferencesChanged(changes => {
+            this.reconcileData(changes);
+        });
     }
 
     protected reconcileData(changes?: PreferenceChanges): void {
+        const sections = MonacoConfigurations.parseSections(changes);
+        let target: monaco.services.ConfigurationTarget | undefined;
+        if (changes && sections && sections.length > 0) {
+            const change = changes[sections[0]];
+            target = MonacoConfigurations.toTarget(change.scope);
+        }
+
         this.onDidChangeConfigurationEmitter.fire({
-            affectedSections: MonacoConfigurations.parseSections(changes),
-            affectsConfiguration: section => this.affectsConfiguration(section, changes)
+            affectedSections: sections,
+            affectsConfiguration: section => this.affectsConfiguration(section, changes),
+            target
         });
     }
 
@@ -87,6 +98,15 @@ export namespace MonacoConfigurations {
             }
         }
         return sections;
+    }
+
+    export function toTarget(scope: PreferenceScope): monaco.services.ConfigurationTarget {
+        switch (scope) {
+            case PreferenceScope.Default: return monaco.services.ConfigurationTarget.DEFAULT;
+            case PreferenceScope.User: return monaco.services.ConfigurationTarget.USER;
+            case PreferenceScope.Workspace: return monaco.services.ConfigurationTarget.WORKSPACE;
+            case PreferenceScope.Folder: return monaco.services.ConfigurationTarget.WORKSPACE_FOLDER;
+        }
     }
 }
 

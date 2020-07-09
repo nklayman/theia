@@ -18,10 +18,8 @@ import '../../src/browser/style/index.css';
 import '../../src/browser/style/symbol-sprite.svg';
 import '../../src/browser/style/symbol-icons.css';
 
-import debounce = require('lodash.debounce');
 import { ContainerModule, decorate, injectable, interfaces } from 'inversify';
 import { MenuContribution, CommandContribution } from '@theia/core/lib/common';
-import { PreferenceScope } from '@theia/core/lib/common/preferences/preference-scope';
 import {
     QuickOpenService, FrontendApplicationContribution, KeybindingContribution,
     PreferenceService, PreferenceSchemaProvider, createPreferenceProxy
@@ -167,20 +165,17 @@ export function createMonacoConfigurationService(container: interfaces.Container
         return proxy;
     };
 
-    const initFromConfiguration = debounce(() => {
-        const event = new monaco.services.ConfigurationChangeEvent(); // todo: align ConfigurationChangeEvent with VS Code
-        event._source = 6 /* DEFAULT */;
-        service._onDidChangeConfiguration.fire(event);
-    });
-    preferences.onPreferenceChanged(e => {
-        if (e.scope === PreferenceScope.Default) {
-            initFromConfiguration();
-        }
-    });
     configurations.onDidChangeConfiguration(e => {
         if (e.affectedSections) {
-            const event = new monaco.services.ConfigurationChangeEvent(); // todo: align ConfigurationChangeEvent with VS Code
-            event.change(e.affectedSections);
+            const keys = e.affectedSections || [];
+            const previous = { data: service._configuration.toData() };
+            const event = new monaco.services.ConfigurationChangeEvent({ keys, overrides: [] }, previous, service._configuration);
+
+            const target = e.target;
+            if (target) {
+                event.source = target;
+            }
+
             service._onDidChangeConfiguration.fire(event);
         }
     });
