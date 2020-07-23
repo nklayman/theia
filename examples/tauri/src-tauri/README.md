@@ -4,7 +4,7 @@ Theia packaged as a [Tauri](https://tauri.studio) application.
 
 ## To Use
 
-Currently only working in Linux
+Currently only working in Linux. Please follow [Tauri Linux setup guide](https://tauri.studio/docs/getting-started/setup-linux) before running example.
 
 1. Follow the [devloping guide](https://github.com/eclipse-theia/theia/blob/master/doc/Developing.md) to get set up to run examples
 2. Run `yarn install` in the root of this repo
