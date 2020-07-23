@@ -20,6 +20,7 @@ import { NpmRegistry, NodePackage, PublishedNodePackage, sortByKey } from './npm
 import { Extension, ExtensionPackage, RawExtensionPackage } from './extension-package';
 import { ExtensionPackageCollector } from './extension-package-collector';
 import { ApplicationProps } from './application-props';
+import { existsSync } from 'fs';
 
 // tslint:disable:no-implicit-dependencies
 
@@ -95,7 +96,7 @@ export class ApplicationPackage {
         if (this._pck) {
             return this._pck;
         }
-        return this._pck = readJsonFile(this.packagePath);
+        return this._pck = existsSync(this.packagePath) ? readJsonFile(this.packagePath) : {};
     }
 
     protected _frontendModules: Map<string, string> | undefined;

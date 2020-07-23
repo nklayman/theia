@@ -19,6 +19,7 @@ cache:
     - examples/api-samples/node_modules
     - examples/browser/node_modules
     - examples/electron/node_modules
+    - examples/tauri/node_modules
     - node_modules
     - packages/callhierarchy/node_modules
     - packages/console/node_modules

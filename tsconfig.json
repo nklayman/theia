@@ -162,6 +162,9 @@
       ],
       "@theia/vsx-registry/lib/*": [
         "packages/vsx-registry/src/*"
+      ],
+      "@theia/example-tauri/*": [
+        "examples/tauri/*"
       ]
     }
   }
