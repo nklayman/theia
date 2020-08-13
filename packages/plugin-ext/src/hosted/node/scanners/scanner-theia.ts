@@ -60,6 +60,7 @@ import { PreferenceSchema, PreferenceSchemaProperties } from '@theia/core/lib/co
 import { RecursivePartial } from '@theia/core/lib/common/types';
 import { ProblemMatcherContribution, ProblemPatternContribution, TaskDefinition } from '@theia/task/lib/common/task-protocol';
 import { ColorDefinition } from '@theia/core/lib/browser/color-registry';
+import { ResourceLabelFormatter } from '@theia/core/lib/common/label-protocol';
 
 namespace nls {
     export function localize(key: string, _default: string): string {
@@ -273,6 +274,14 @@ export class TheiaPluginScanner implements PluginScanner {
         }
 
         try {
+            if (rawPlugin.contributes!.resourceLabelFormatters) {
+                contributions.resourceLabelFormatters = rawPlugin.contributes!.resourceLabelFormatters as ResourceLabelFormatter[];
+            }
+        } catch (err) {
+            console.error(`Could not read '${rawPlugin.name}' contribution 'resourceLabelFormatters'.`, rawPlugin.contributes!.resourceLabelFormatters, err);
+        }
+
+        try {
             contributions.snippets = this.readSnippets(rawPlugin);
         } catch (err) {
             console.error(`Could not read '${rawPlugin.name}' contribution 'snippets'.`, rawPlugin.contributes!.snippets, err);
@@ -299,10 +308,15 @@ export class TheiaPluginScanner implements PluginScanner {
     }
 
     protected readCommand({ command, title, category, icon }: PluginPackageCommand, pck: PluginPackage): PluginCommand {
+        let themeIcon: string | undefined;
         let iconUrl: IconUrl | undefined;
         if (icon) {
             if (typeof icon === 'string') {
-                iconUrl = this.toPluginUrl(pck, icon);
+                if (icon.startsWith('$(')) {
+                    themeIcon = icon;
+                } else {
+                    iconUrl = this.toPluginUrl(pck, icon);
+                }
             } else {
                 iconUrl = {
                     light: this.toPluginUrl(pck, icon.light),
@@ -310,7 +324,7 @@ export class TheiaPluginScanner implements PluginScanner {
                 };
             }
         }
-        return { command, title, category, iconUrl };
+        return { command, title, category, iconUrl, themeIcon };
     }
 
     protected toPluginUrl(pck: PluginPackage, relativePath: string): string {

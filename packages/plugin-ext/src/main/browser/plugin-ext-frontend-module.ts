@@ -42,16 +42,11 @@ import { TextContentResourceResolver } from './workspace-main';
 import { MainPluginApiProvider } from '../../common/plugin-ext-api-contribution';
 import { PluginPathsService, pluginPathsServicePath } from '../common/plugin-paths-protocol';
 import { KeybindingsContributionPointHandler } from './keybindings/keybindings-contribution-handler';
-import { LanguageClientProvider } from '@theia/languages/lib/browser/language-client-provider';
-import { LanguageClientProviderImpl } from './language-provider/plugin-language-client-provider';
-import { LanguageClientContributionProviderImpl } from './language-provider/language-client-contribution-provider-impl';
-import { LanguageClientContributionProvider } from './language-provider/language-client-contribution-provider';
 import { DebugSessionContributionRegistry } from '@theia/debug/lib/browser/debug-session-contribution';
 import { PluginDebugSessionContributionRegistry } from './debug/plugin-debug-session-contribution-registry';
 import { PluginDebugService } from './debug/plugin-debug-service';
 import { DebugService } from '@theia/debug/lib/common/debug-service';
 import { PluginSharedStyle } from './plugin-shared-style';
-import { FSResourceResolver } from './file-system-main';
 import { SelectionProviderCommandContribution } from './selection-provider-command';
 import { ViewColumnService } from './view-column-service';
 import { ViewContextKeyService } from './view/view-context-key-service';
@@ -61,7 +56,6 @@ import { RPCProtocol } from '../../common/rpc-protocol';
 import { LanguagesMainFactory, OutputChannelRegistryFactory } from '../../common';
 import { LanguagesMainImpl } from './languages-main';
 import { OutputChannelRegistryMainImpl } from './output-channel-registry-main';
-import { InPluginFileSystemWatcherManager } from './in-plugin-filesystem-watcher-manager';
 import { WebviewWidget } from './webview/webview';
 import { WebviewEnvironment } from './webview/webview-environment';
 import { WebviewThemeDataProvider } from './webview/webview-theme-data-provider';
@@ -198,17 +192,9 @@ export default new ContainerModule((bind, unbind, isBound, rebind) => {
     bind(KeybindingsContributionPointHandler).toSelf().inSingletonScope();
     bind(PluginContributionHandler).toSelf().inSingletonScope();
 
-    bind(InPluginFileSystemWatcherManager).toSelf().inSingletonScope();
     bind(TextContentResourceResolver).toSelf().inSingletonScope();
     bind(ResourceResolver).toService(TextContentResourceResolver);
-    bind(FSResourceResolver).toSelf().inSingletonScope();
-    bind(ResourceResolver).toService(FSResourceResolver);
     bindContributionProvider(bind, MainPluginApiProvider);
-
-    bind(LanguageClientContributionProviderImpl).toSelf().inSingletonScope();
-    bind(LanguageClientContributionProvider).toService(LanguageClientContributionProviderImpl);
-    bind(LanguageClientProviderImpl).toSelf().inSingletonScope();
-    rebind(LanguageClientProvider).toService(LanguageClientProviderImpl);
 
     bind(PluginDebugService).toSelf().inSingletonScope();
     rebind(DebugService).toService(PluginDebugService);

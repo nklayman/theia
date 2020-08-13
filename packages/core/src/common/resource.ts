@@ -23,6 +23,8 @@ import { Disposable } from './disposable';
 import { MaybePromise } from './types';
 import { CancellationToken } from './cancellation';
 import { ApplicationError } from './application-error';
+import { ReadableStream, Readable } from './stream';
+import { SyncReferenceCollection, Reference } from './reference';
 
 export interface ResourceVersion {
 }
@@ -32,8 +34,8 @@ export interface ResourceReadOptions {
 }
 
 export interface ResourceSaveOptions {
-    encoding?: string,
-    overwriteEncoding?: string,
+    encoding?: string
+    overwriteEncoding?: boolean
     version?: ResourceVersion
 }
 
@@ -47,24 +49,54 @@ export interface Resource extends Disposable {
      */
     readonly version?: ResourceVersion | undefined;
     /**
+     * Latest read encoding of this resource.
+     *
+     * Optional if a resource does not support encoding, check with `in` operator`.
+     * Undefined if a resource did not read content yet.
+     */
+    readonly encoding?: string | undefined;
+    /**
      * Reads latest content of this resource.
      *
      * If a resource supports versioning it updates version to latest.
+     * If a resource supports encoding it updates encoding to latest.
      *
      * @throws `ResourceError.NotFound` if a resource not found
      */
     readContents(options?: ResourceReadOptions): Promise<string>;
+    /**
+     * Stream latest content of this resource.
+     *
+     * If a resource supports versioning it updates version to latest.
+     * If a resource supports encoding it updates encoding to latest.
+     *
+     * @throws `ResourceError.NotFound` if a resource not found
+     */
+    readStream?(options?: ResourceReadOptions): Promise<ReadableStream<string>>;
     /**
      * Rewrites the complete content for this resource.
      * If a resource does not exist it will be created.
      *
      * If a resource supports versioning clients can pass some version
      * to check against it, if it is not provided latest version is used.
-     * It updates version to latest.
+     *
+     * It updates version and encoding to latest.
      *
      * @throws `ResourceError.OutOfSync` if latest resource version is out of sync with the given
      */
     saveContents?(content: string, options?: ResourceSaveOptions): Promise<void>;
+    /**
+     * Rewrites the complete content for this resource.
+     * If a resource does not exist it will be created.
+     *
+     * If a resource supports versioning clients can pass some version
+     * to check against it, if it is not provided latest version is used.
+     *
+     * It updates version and encoding to latest.
+     *
+     * @throws `ResourceError.OutOfSync` if latest resource version is out of sync with the given
+     */
+    saveStream?(content: Readable<string>, options?: ResourceSaveOptions): Promise<void>;
     /**
      * Applies incremental content changes to this resource.
      *
@@ -81,7 +113,8 @@ export interface Resource extends Disposable {
 }
 export namespace Resource {
     export interface SaveContext {
-        content: string
+        contentLength: number
+        content: string | Readable<string>
         changes?: TextDocumentContentChangeEvent[]
         options?: ResourceSaveOptions
     }
@@ -95,10 +128,15 @@ export namespace Resource {
         if (token && token.isCancellationRequested) {
             return;
         }
-        await resource.saveContents(context.content, context.options);
+        if (typeof context.content !== 'string' && resource.saveStream) {
+            await resource.saveStream(context.content, context.options);
+        } else {
+            const content = typeof context.content === 'string' ? context.content : Readable.toString(context.content);
+            await resource.saveContents(content, context.options);
+        }
     }
     export async function trySaveContentChanges(resource: Resource, context: SaveContext): Promise<boolean> {
-        if (!context.changes || !resource.saveContentChanges || shouldSaveContent(context)) {
+        if (!context.changes || !resource.saveContentChanges || shouldSaveContent(resource, context)) {
             return false;
         }
         try {
@@ -111,12 +149,11 @@ export namespace Resource {
             return false;
         }
     }
-    export function shouldSaveContent({ content, changes }: SaveContext): boolean {
-        if (!changes) {
+    export function shouldSaveContent(resource: Resource, { contentLength, changes }: SaveContext): boolean {
+        if (!changes || (resource.saveStream && contentLength > 32 * 1024 * 1024)) {
             return true;
         }
         let contentChangesLength = 0;
-        const contentLength = content.length;
         for (const change of changes) {
             contentChangesLength += JSON.stringify(change).length;
             if (contentChangesLength > contentLength) {
@@ -169,11 +206,12 @@ export class DefaultResourceProvider {
 }
 
 export class MutableResource implements Resource {
-    private contents: string;
+    private contents: string = '';
 
-    constructor(readonly uri: URI, contents: string, readonly dispose: () => void) {
-        this.contents = contents;
+    constructor(readonly uri: URI) {
     }
+
+    dispose(): void { }
 
     async readContents(): Promise<string> {
         return this.contents;
@@ -185,25 +223,47 @@ export class MutableResource implements Resource {
     }
 
     protected readonly onDidChangeContentsEmitter = new Emitter<void>();
-    onDidChangeContents = this.onDidChangeContentsEmitter.event;
+    readonly onDidChangeContents = this.onDidChangeContentsEmitter.event;
     protected fireDidChangeContents(): void {
         this.onDidChangeContentsEmitter.fire(undefined);
+    }
+}
+export class ReferenceMutableResource implements Resource {
+    constructor(protected reference: Reference<MutableResource>) { }
+
+    get uri(): URI {
+        return this.reference.object.uri;
+    }
+
+    get onDidChangeContents(): Event<void> {
+        return this.reference.object.onDidChangeContents;
+    }
+
+    dispose(): void {
+        this.reference.dispose();
+    }
+
+    readContents(): Promise<string> {
+        return this.reference.object.readContents();
+    }
+
+    saveContents(contents: string): Promise<void> {
+        return this.reference.object.saveContents(contents);
     }
 }
 
 @injectable()
 export class InMemoryResources implements ResourceResolver {
 
-    private readonly resources = new Map<string, MutableResource>();
+    protected readonly resources = new SyncReferenceCollection<string, MutableResource>(uri => new MutableResource(new URI(uri)));
 
     add(uri: URI, contents: string): Resource {
         const resourceUri = uri.toString();
         if (this.resources.has(resourceUri)) {
             throw new Error(`Cannot add already existing in-memory resource '${resourceUri}'`);
         }
-
-        const resource = new MutableResource(uri, contents, () => this.resources.delete(resourceUri));
-        this.resources.set(resourceUri, resource);
+        const resource = this.acquire(resourceUri);
+        resource.saveContents(contents);
         return resource;
     }
 
@@ -222,6 +282,11 @@ export class InMemoryResources implements ResourceResolver {
         if (!this.resources.has(uriString)) {
             throw new Error(`In memory '${uriString}' resource does not exist.`);
         }
-        return this.resources.get(uriString)!;
+        return this.acquire(uriString);
+    }
+
+    protected acquire(uri: string): ReferenceMutableResource {
+        const reference = this.resources.acquire(uri);
+        return new ReferenceMutableResource(reference);
     }
 }

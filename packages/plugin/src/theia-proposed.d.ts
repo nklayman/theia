@@ -19,59 +19,6 @@
 * These API are NOT stable and subject to change. Use it on own risk.
 */
 declare module '@theia/plugin' {
-    /**
-     * @deprecated since 1.4.0 - in order to remove monaco-languageclient, use VS Code extensions to contribute language smartness:
-     * https://code.visualstudio.com/api/language-extensions/language-server-extension-guide
-     */
-    export namespace languageServer {
-        /**
-         * Registers new language server.
-         *
-         * @param languageServerInfo information about the language server
-         */
-        export function registerLanguageServerProvider(languageServerInfo: LanguageServerInfo): Disposable;
-
-        /**
-         * Stops the language server.
-         *
-         * @param id language server's id
-         */
-        export function stop(id: string): void;
-    }
-
-    /**
-     * The language contribution interface defines an information about language server which should be registered.
-     *
-     * @deprecated since 1.4.0 - in order to remove monaco-languageclient, use VS Code extensions to contribute language smartness:
-     * https://code.visualstudio.com/api/language-extensions/language-server-extension-guide
-     */
-    export interface LanguageServerInfo {
-        /**
-         * Language server's id.
-         */
-        id: string;
-        /**
-         * Language server's name.
-         */
-        name: string;
-        /**
-         * The command to run language server as a process.
-         */
-        command: string;
-        /**
-         * Command's arguments.
-         */
-        args: string[];
-        /**
-         * File's patterns which can be used to create file system watchers.
-         */
-        globPatterns?: string[];
-        /**
-         * Names of files. If the workspace contains some of them language server should be activated.
-         */
-        workspaceContains?: string[];
-    }
-
 
     /**
      * The contiguous set of modified lines in a diff.
@@ -414,4 +361,37 @@ declare module '@theia/plugin' {
         limitHit?: boolean;
     }
     //#endregion
+
+    //#region read/write in chunks: https://github.com/microsoft/vscode/issues/84515
+
+    export interface FileSystemProvider {
+        open?(resource: Uri, options: { create: boolean; }): number | Thenable<number>;
+        close?(fd: number): void | Thenable<void>;
+        read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+        write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
+    }
+
+    //#endregion
+
+
+    export interface ResourceLabelFormatter {
+        scheme: string;
+        authority?: string;
+        formatting: ResourceLabelFormatting;
+    }
+
+    export interface ResourceLabelFormatting {
+        label: string; // myLabel:/${path}
+        // TODO@isi
+        // eslint-disable-next-line vscode-dts-literal-or-types
+        separator: '/' | '\\' | '';
+        tildify?: boolean;
+        normalizeDriveLetter?: boolean;
+        workspaceSuffix?: string;
+        authorityPrefix?: string;
+    }
+
+    export namespace workspace {
+        export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
+    }
 }

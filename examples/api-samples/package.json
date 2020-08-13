@@ -1,15 +1,19 @@
 {
   "private": true,
   "name": "@theia/api-samples",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Theia - Example code to demonstrate Theia API",
   "dependencies": {
-    "@theia/core": "^1.3.0",
-    "@theia/output": "^1.3.0"
+    "@theia/core": "^1.4.0",
+    "@theia/output": "^1.4.0"
   },
   "theiaExtensions": [
     {
       "frontend": "lib/browser/api-samples-frontend-module"
+    },
+    {
+      "electronMain": "lib/electron-main/update/sample-updater-main-module",
+      "frontendElectron": "lib/electron-browser/updater/sample-updater-frontend-module"
     }
   ],
   "keywords": [
@@ -35,6 +39,6 @@
     "clean": "theiaext clean"
   },
   "devDependencies": {
-    "@theia/ext-scripts": "^1.3.0"
+    "@theia/ext-scripts": "^1.4.0"
   }
 }

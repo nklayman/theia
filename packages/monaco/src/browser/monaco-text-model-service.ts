@@ -15,12 +15,13 @@
  ********************************************************************************/
 
 import { inject, injectable, named } from 'inversify';
-import { MonacoToProtocolConverter, ProtocolToMonacoConverter } from 'monaco-languageclient';
 import URI from '@theia/core/lib/common/uri';
 import { ResourceProvider, ReferenceCollection, Event, MaybePromise, Resource, ContributionProvider } from '@theia/core';
 import { EditorPreferences, EditorPreferenceChange } from '@theia/editor/lib/browser';
 import { MonacoEditorModel } from './monaco-editor-model';
 import IReference = monaco.editor.IReference;
+import { MonacoToProtocolConverter } from './monaco-to-protocol-converter';
+import { ProtocolToMonacoConverter } from './protocol-to-monaco-converter';
 export { IReference };
 
 export const MonacoEditorModelFactory = Symbol('MonacoEditorModelFactory');
@@ -29,8 +30,7 @@ export interface MonacoEditorModelFactory {
     readonly scheme: string;
 
     createModel(
-        resource: Resource,
-        options?: { encoding?: string | undefined }
+        resource: Resource
     ): MaybePromise<MonacoEditorModel>;
 
 }
@@ -86,9 +86,8 @@ export class MonacoTextModelService implements monaco.editor.ITextModelService {
     }
 
     protected createModel(resource: Resource): MaybePromise<MonacoEditorModel> {
-        const options = { encoding: this.editorPreferences.get('files.encoding') };
         const factory = this.factories.getContributions().find(({ scheme }) => resource.uri.scheme === scheme);
-        return factory ? factory.createModel(resource, options) : new MonacoEditorModel(resource, this.m2p, this.p2m, options);
+        return factory ? factory.createModel(resource) : new MonacoEditorModel(resource, this.m2p, this.p2m);
     }
 
     protected readonly modelOptions: { [name: string]: (keyof monaco.editor.ITextModelUpdateOptions | undefined) } = {

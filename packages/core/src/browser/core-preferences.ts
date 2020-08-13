@@ -16,6 +16,7 @@
 
 import { interfaces } from 'inversify';
 import { createPreferenceProxy, PreferenceProxy, PreferenceService, PreferenceContribution, PreferenceSchema } from './preferences';
+import { SUPPORTED_ENCODINGS } from './supported-encodings';
 
 export const corePreferenceSchema: PreferenceSchema = {
     'type': 'object',
@@ -62,6 +63,21 @@ export const corePreferenceSchema: PreferenceSchema = {
             type: 'boolean',
             default: false,
             description: 'Controls whether to suppress notification popups.'
+        },
+        'files.encoding': {
+            'type': 'string',
+            'enum': Object.keys(SUPPORTED_ENCODINGS),
+            'default': 'utf8',
+            'description': 'The default character set encoding to use when reading and writing files. This setting can also be configured per language.',
+            'scope': 'language-overridable',
+            'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
+            'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
+        },
+        'workbench.tree.renderIndentGuides': {
+            type: 'string',
+            enum: ['onHover', 'none', 'always'],
+            default: 'onHover',
+            description: 'Controls whether the tree should render indent guides.'
         }
     }
 };
@@ -74,6 +90,8 @@ export interface CoreConfiguration {
     'workbench.colorTheme'?: string;
     'workbench.iconTheme'?: string | null;
     'workbench.silentNotifications': boolean;
+    'files.encoding': string
+    'workbench.tree.renderIndentGuides': 'onHover' | 'none' | 'always';
 }
 
 export const CorePreferences = Symbol('CorePreferences');

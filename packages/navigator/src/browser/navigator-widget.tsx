@@ -18,7 +18,7 @@ import { injectable, inject, postConstruct } from 'inversify';
 import { Message } from '@phosphor/messaging';
 import URI from '@theia/core/lib/common/uri';
 import { CommandService, SelectionService } from '@theia/core/lib/common';
-import { CommonCommands, CorePreferences, ViewContainerTitleOptions, Key } from '@theia/core/lib/browser';
+import { CorePreferences, ViewContainerTitleOptions, Key } from '@theia/core/lib/browser';
 import {
     ContextMenuRenderer, ExpandableTreeNode,
     TreeProps, TreeModel, TreeNode
@@ -28,10 +28,10 @@ import { WorkspaceService, WorkspaceCommands } from '@theia/workspace/lib/browse
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
 import { WorkspaceNode, WorkspaceRootNode } from './navigator-tree';
 import { FileNavigatorModel } from './navigator-model';
-import { FileSystem } from '@theia/filesystem/lib/common/filesystem';
 import { isOSX, environment } from '@theia/core';
 import * as React from 'react';
 import { NavigatorContextKeyService } from './navigator-context-key-service';
+import { FileNavigatorCommands } from './navigator-contribution';
 
 export const FILE_NAVIGATOR_ID = 'files';
 export const EXPLORER_VIEW_CONTAINER_ID = 'explorer-view-container';
@@ -59,8 +59,7 @@ export class FileNavigatorWidget extends FileTreeWidget {
         @inject(CommandService) protected readonly commandService: CommandService,
         @inject(SelectionService) protected readonly selectionService: SelectionService,
         @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService,
-        @inject(ApplicationShell) protected readonly shell: ApplicationShell,
-        @inject(FileSystem) protected readonly fileSystem: FileSystem
+        @inject(ApplicationShell) protected readonly shell: ApplicationShell
     ) {
         super(props, model, contextMenuRenderer);
         this.id = FILE_NAVIGATOR_ID;
@@ -110,7 +109,7 @@ export class FileNavigatorWidget extends FileTreeWidget {
         const mainPanelNode = this.shell.mainPanel.node;
         this.addEventListener(mainPanelNode, 'drop', async ({ dataTransfer }) => {
             const treeNodes = dataTransfer && this.getSelectedTreeNodesFromData(dataTransfer) || [];
-            treeNodes.filter(FileNode.is).forEach(treeNode => this.commandService.executeCommand(CommonCommands.OPEN.id, treeNode.uri));
+            treeNodes.filter(FileNode.is).forEach(treeNode => this.commandService.executeCommand(FileNavigatorCommands.OPEN.id, treeNode.uri));
         });
         const handler = (e: DragEvent) => {
             if (e.dataTransfer) {
@@ -131,23 +130,6 @@ export class FileNavigatorWidget extends FileTreeWidget {
             return root.children[0];
         }
         return undefined;
-    }
-
-    protected deflateForStorage(node: TreeNode): object {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const copy = { ...node } as any;
-        if (copy.uri) {
-            copy.uri = copy.uri.toString();
-        }
-        return super.deflateForStorage(copy);
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    protected inflateFromStorage(node: any, parent?: TreeNode): TreeNode {
-        if (node.uri) {
-            node.uri = new URI(node.uri);
-        }
-        return super.inflateFromStorage(node, parent);
     }
 
     protected renderTree(model: TreeModel): React.ReactNode {
@@ -175,11 +157,14 @@ export class FileNavigatorWidget extends FileTreeWidget {
             if (!raw) {
                 return;
             }
+            const target = this.model.selectedFileStatNodes[0];
+            if (!target) {
+                return;
+            }
             for (const file of raw.split('\n')) {
-                const uri = new URI(file);
-                if (this.model.copy(uri)) {
-                    event.preventDefault();
-                }
+                event.preventDefault();
+                const source = new URI(file);
+                this.model.copy(source, target);
             }
         }
     }

@@ -18,12 +18,12 @@ import { inject, injectable, postConstruct } from 'inversify';
 import { CommandContribution, CommandRegistry, Command } from '@theia/core/lib/common';
 import URI from '@theia/core/lib/common/uri';
 import { CommonCommands, PreferenceService, QuickPickItem, QuickPickService, LabelProvider, QuickPickValue, ApplicationShell } from '@theia/core/lib/browser';
-import { Languages, Language } from '@theia/languages/lib/browser';
 import { EditorManager } from './editor-manager';
 import { EncodingMode } from './editor';
 import { EditorPreferences } from './editor-preferences';
-import { SUPPORTED_ENCODINGS } from './supported-encodings';
 import { ResourceProvider, MessageService } from '@theia/core';
+import { LanguageService, Language } from '@theia/core/lib/browser/language-service';
+import { SUPPORTED_ENCODINGS } from '@theia/core/lib/browser/supported-encodings';
 
 export namespace EditorCommands {
 
@@ -157,8 +157,8 @@ export class EditorCommandContribution implements CommandContribution {
     @inject(LabelProvider)
     protected readonly labelProvider: LabelProvider;
 
-    @inject(Languages)
-    protected readonly languages: Languages;
+    @inject(LanguageService)
+    protected readonly languages: LanguageService;
 
     @inject(EditorManager)
     protected readonly editorManager: EditorManager;
@@ -260,7 +260,7 @@ export class EditorCommandContribution implements CommandContribution {
         }
         const isReopenWithEncoding = (action === reopenWithEncodingPick.value);
 
-        const configuredEncoding = this.editorPreferences.get('files.encoding');
+        const configuredEncoding = this.preferencesService.get<string>('files.encoding', 'utf8', editor.uri.toString());
 
         const resource = await this.resourceProvider(editor.uri);
         const guessedEncoding = resource.guessEncoding ? await resource.guessEncoding() : undefined;

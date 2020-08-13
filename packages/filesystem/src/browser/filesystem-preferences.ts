@@ -22,6 +22,14 @@ import {
     PreferenceSchema,
     PreferenceContribution
 } from '@theia/core/lib/browser/preferences';
+import { SUPPORTED_ENCODINGS } from '@theia/core/lib/browser/supported-encodings';
+import { environment } from '@theia/application-package/lib/environment';
+
+// See https://github.com/Microsoft/vscode/issues/30180
+export const WIN32_MAX_FILE_SIZE_MB = 300; // 300 MB
+export const GENERAL_MAX_FILE_SIZE_MB = 16 * 1024; // 16 GB
+
+export const MAX_FILE_SIZE_MB = environment.electron.is() ? process.arch === 'ia32' ? WIN32_MAX_FILE_SIZE_MB : GENERAL_MAX_FILE_SIZE_MB : 32;
 
 export const filesystemPreferenceSchema: PreferenceSchema = {
     'type': 'object',
@@ -53,6 +61,23 @@ export const filesystemPreferenceSchema: PreferenceSchema = {
             'type': 'object',
             'description': 'Configure file associations to languages (e.g. \"*.extension\": \"html\"). \
 These have precedence over the default associations of the languages installed.'
+        },
+        'files.autoGuessEncoding': {
+            'type': 'boolean',
+            'default': false,
+            'description': 'When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language.',
+            'scope': 'language-overridable',
+            'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
+        },
+        'files.participants.timeout': {
+            type: 'number',
+            default: 5000,
+            markdownDescription: 'Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants.'
+        },
+        'files.maxFileSizeMB': {
+            type: 'number',
+            default: MAX_FILE_SIZE_MB,
+            markdownDescription: 'Controls the max file size in MB which is possible to open.'
         }
     }
 };
@@ -62,6 +87,10 @@ export interface FileSystemConfiguration {
     'files.exclude': { [key: string]: boolean };
     'files.enableTrash': boolean;
     'files.associations': { [filepattern: string]: string };
+    'files.encoding': string;
+    'files.autoGuessEncoding': boolean;
+    'files.participants.timeout': number;
+    'files.maxFileSizeMB': number;
 }
 
 export const FileSystemPreferences = Symbol('FileSystemPreferences');

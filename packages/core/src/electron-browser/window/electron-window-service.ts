@@ -14,20 +14,19 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable } from 'inversify';
-import { ipcRenderer } from 'electron';
+import { injectable, inject } from 'inversify';
 import { NewWindowOptions } from '../../browser/window/window-service';
 import { DefaultWindowService } from '../../browser/window/default-window-service';
+import { ElectronMainWindowService } from '../../electron-common/electron-main-window-service';
 
 @injectable()
 export class ElectronWindowService extends DefaultWindowService {
 
+    @inject(ElectronMainWindowService)
+    protected readonly delegate: ElectronMainWindowService;
+
     openNewWindow(url: string, { external }: NewWindowOptions = {}): undefined {
-        if (external) {
-            ipcRenderer.send('open-external', url);
-        } else {
-            ipcRenderer.send('create-new-window', url);
-        }
+        this.delegate.openNewWindow(url, { external });
         return undefined;
     }
 

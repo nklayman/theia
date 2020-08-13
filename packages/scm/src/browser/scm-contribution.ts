@@ -25,7 +25,8 @@ import {
     StatusBarEntry,
     KeybindingRegistry,
     ViewContainerTitleOptions,
-    ViewContainer} from '@theia/core/lib/browser';
+    ViewContainer
+} from '@theia/core/lib/browser';
 import { TabBarToolbarContribution, TabBarToolbarRegistry, TabBarToolbarItem } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { CommandRegistry, Command, Disposable, DisposableCollection, CommandService } from '@theia/core/lib/common';
 import { ContextKeyService, ContextKey } from '@theia/core/lib/browser/context-key-service';
@@ -65,6 +66,13 @@ export namespace SCM_COMMANDS {
         tooltip: 'Toggle to List View',
         iconClass: 'codicon codicon-list-flat',
         label: 'Toggle to List View',
+    };
+    export const COLLAPSE_ALL = {
+        id: 'scm.collapseAll',
+        category: 'SCM',
+        tooltip: 'Collapse All',
+        iconClass: 'codicon codicon-collapse-all',
+        label: 'Collapse All',
     };
 }
 
@@ -180,6 +188,27 @@ export class ScmContribution extends AbstractViewContribution<ScmWidget> impleme
         };
         registerToggleViewItem(SCM_COMMANDS.TREE_VIEW_MODE, 'tree');
         registerToggleViewItem(SCM_COMMANDS.LIST_VIEW_MODE, 'list');
+
+        this.commandRegistry.registerCommand(SCM_COMMANDS.COLLAPSE_ALL, {
+            execute: widget => {
+                const scmWidget = extractScmWidget(widget);
+                if (scmWidget && scmWidget.viewMode === 'tree') {
+                    scmWidget.collapseScmTree();
+                }
+            },
+            isVisible: widget => {
+                const scmWidget = extractScmWidget(widget);
+                if (scmWidget) {
+                    return !!this.scmService.selectedRepository && scmWidget.viewMode === 'tree';
+                }
+                return false;
+            }
+        });
+
+        registry.registerItem({
+            ...SCM_COMMANDS.COLLAPSE_ALL,
+            command: SCM_COMMANDS.COLLAPSE_ALL.id
+        });
     }
 
     registerKeybindings(keybindings: KeybindingRegistry): void {

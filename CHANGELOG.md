@@ -1,14 +1,84 @@
 # Change Log
 
+## v1.5.0
+
+- [security] updated version range of `decompress` to fix the known [security vulnerability](https://snyk.io/vuln/SNYK-JS-DECOMPRESS-557358) [#8924](https://github.com/eclipse-theia/theia/pull/8294)
+  - Note: the updated dependency may have a [performance impact](https://github.com/eclipse-theia/theia/pull/7715#issuecomment-667434288) on the deployment of plugins.
+<a name="1_5_0_electron_main_extension"></a>
+- [[electron]](#1_5_0_electron_main_extension) Electron applications can now be configured/extended through `inversify`. Added new `electronMain` extension points to provide inversify container modules. [#8076](https://github.com/eclipse-theia/theia/pull/8076)
+
+<a name="breaking_changes_1.5.0">[Breaking Changes:](#breaking_changes_1.5.0)</a>
+
+- [core] removed `KeybindingRegistry#getScopedKeybindingsForCommand` [#8283](https://github.com/eclipse-theia/theia/pull/8283)
+- [application-package] removed `isOutdated` from `ExtensionPackage` [#8295](https://github.com/eclipse-theia/theia/pull/8295)
+- [application-package] removed `getLatestVersion` from `ExtensionPackage` [#8295](https://github.com/eclipse-theia/theia/pull/8295)
+- [application-package] removed `getVersionRange` from `ExtensionPackage` [#8295](https://github.com/eclipse-theia/theia/pull/8295)
+- [application-package] removed `resolveVersionRange` from `ExtensionPackage` [#8295](https://github.com/eclipse-theia/theia/pull/8295)
+- [output] `OutputWidget#setInput` has been removed. The _Output_ view automatically shows the channel when calling `OutputChannel#show`. Moved the `OutputCommands` namespace from the `output-contribution` to its dedicated `output-commands` module to overcome a DI cycle. [#8243](https://github.com/eclipse-theia/theia/pull/8243)
+- [example app] updated yarn.lock so that the latest version of `vscode-ripgrep` is used (`v1.8.0`). This way we can benefit from the recently added support for it using proxy settings when fetching the platform-specific `ripgrep` executable, after npm package install. This should make it a lot easier to build our example application in corporate settings, behind a firewall. [#8280](https://github.com/eclipse-theia/theia/pull/8280)
+  - Note to downstream IDE designers: this change will not have an effect beyond this repo's example application. If it's desirable for your product to have the latest `vscode-ripgrep`, you should do similarly in your own `yarn.lock`.
+<a name="1.5.0_deprecate_file_sytem"></a>
+- [[filesystem]](#1.5.0_deprecate_file_sytem) `FileSystem` and `FileSystemWatcher` services are deprecated [#7908](https://github.com/eclipse-theia/theia/pull/7908)
+  - On the backend there is no anymore `FileSystem` implementation. One has to use Node.js APIs instead.
+  - On the frontend `FileService` should be used instead. It was ported from VS Code for compatibility with VS Code extensions.
+  - On the frontend `EnvVariableServer` should be used instead to access the current user home and available drives.
+<a name="1.5.0_usestorage_as_fs_provider"></a>
+- [[userstorage]](#1.5.0_usestorage_as_fs_provider) `UserStorageService` was replaced by the user data fs provider [#7908](https://github.com/eclipse-theia/theia/pull/7908)
+<a name="1.5.0_root_user_storage_uri"></a>
+- [[user-storage]](#1.5.0_root_user_storage_uri) settings URI must start with `/user` root to satisfy expectations of `FileService` []()
+  - If you implement a custom user storage make sure to check old relative locations, otherwise it can cause user data loss.
+<a name="1_5_0_electron_window_options_ipc">
+- [[electron]](#1_5_0_electron_window_options_ipc) Removed the `set-window-options` and `get-persisted-window-options-additions` Electron IPC handlers from the Electron Main process.
+<a name="1.5.0_non_blocking_bulk_edit"></a>
+- [[monaco]](#1.5.0_non_blocking_bulk_edit) `MonacoWorkspace.applyBulkEdit` does not open any editors anymore to avoid blocking [#8329](https://github.com/eclipse-theia/theia/pull/8329)
+  - Consequently, it does not accept editor opener options, and `MonacoWorkspace.openEditors` and `MonacoWorkspace.toTextEditWithEditor` are removed.
+
 ## v1.4.0
 
+- [core] added support for Node.js `12.x` [#7968](https://github.com/eclipse-theia/theia/pull/7968)
+  - From now on, you can use Node.js `12.x` to build Theia from sources. The recommended minimum version is aligned with `electron` (Node.js `12.14.1`).
+  - Support for Node.js `10.x` will be dropped in one of the forthcoming releases.
 - [core] fixed handling of environment variables on Windows [#7973](https://github.com/eclipse-theia/theia/pull/7973)
-- [plugin-ext] fix file-icon incorrectly displays name icon with a dot in name [#7680](https://github.com/eclipse-theia/theia/pull/7680)
-- [core] Added support for Node.js `12.x`. From now on, you can use Node.js `12.x` to build Theia from the sources. The recommended minimum version is aligned with `electron`: Node.js `12.14.1`. The support for Node.js `10.x` will be dropped in one of the forthcoming releases. [#7968](https://github.com/eclipse-theia/theia/pull/7968)
+- [core] fixed issue when selecting a tree node after performing a manual scroll [#8154](https://github.com/eclipse-theia/theia/pull/8154)
+- [debug] added a `select and run` debug statusbar item [#8134](https://github.com/eclipse-theia/theia/pull/8134)
+- [debug] added handling to perform `save` when starting a debug session [#8115](https://github.com/eclipse-theia/theia/pull/8115)
+- [debug] addressed an issue not awaiting the result of the debug handler [#8117](https://github.com/eclipse-theia/theia/pull/8117)
+- [editor] added handling to perform a `save all` when turning `auto-save` on [#8163](https://github.com/eclipse-theia/theia/pull/8163)
+- [editor] improved extensibility of menu and keybinding contributions [#8188](https://github.com/eclipse-theia/theia/pull/8188)
+- [git] fixed the opening of deleted files [#8107](https://github.com/eclipse-theia/theia/pull/8107)
+- [markers] added `problems.autoReveal` preference to control sync between editors and the problem-view [#8172](https://github.com/eclipse-theia/theia/pull/8172)
+- [monaco] improved extensibility of menu and keybinding contributions [#8188](https://github.com/eclipse-theia/theia/pull/8188)
+- [monaco] normalized base pattern path to support different operating systems [#8268](https://github.com/eclipse-theia/theia/pull/8268)
+- [monaco] removed unused dependencies [#8109](https://github.com/eclipse-theia/theia/pull/8109)
+- [navigator] added `copy relative path` to the explorer context-menu and command palette [#8092](https://github.com/eclipse-theia/theia/pull/8092)
+- [output] added `copy all` context-menu item for the output-view [#8057](https://github.com/eclipse-theia/theia/pull/8057)
+- [plugin] added command `copyRelativeFilePath` [#8092](https://github.com/eclipse-theia/theia/pull/8092)
+- [plugin] added support for `resolveDebugConfigurationWithSubstitutedVariables` API [#8253](https://github.com/eclipse-theia/theia/pull/8253)
+- [plugin] added support for `vscode.workspace.findTextInFiles` API [#7868](https://github.com/eclipse-theia/theia/pull/7868)
+- [plugin] added support for theme icons [#8267](https://github.com/eclipse-theia/theia/pull/8267)
+- [plugin] fixed focused handling of webviews when dismissing the quick-open widget [#8137](https://github.com/eclipse-theia/theia/pull/8137)
+- [plugin] fixed the display of file-icons with a dot in the name [#7680](https://github.com/eclipse-theia/theia/pull/7680)
+- [plugin] fixed the modal dialog max size and text-wrapping [#8080](https://github.com/eclipse-theia/theia/pull/8080)
+- [plugin] improved handling of the plugin host activation exceptions [#8103](https://github.com/eclipse-theia/theia/pull/8103)
+- [plugin] removed unnecessary slash at the end of the `pluginPath` [#8045](https://github.com/eclipse-theia/theia/pull/8045)
+- [plugin] updated logic to allow `Command` type in statusbar items [#8253](https://github.com/eclipse-theia/theia/pull/8253)
+- [plugin] updated logic to allow `vsix` without publishers to be loaded [#8196](https://github.com/eclipse-theia/theia/pull/8196)
+- [repo] removed unused resolution for `vscode-json-languageserver` [#8132](https://github.com/eclipse-theia/theia/pull/8132)
+- [search-in-workspace] improved search behavior to only trigger search on input change or <kbd>ENTER</kbd> [#8229](https://github.com/eclipse-theia/theia/pull/8229)
+- [task] fixed an issue where `onDidEndTaskProcess` was not fired for plugins when task ended [#8141](https://github.com/eclipse-theia/theia/pull/8141)
+- [task] introduced a token to scope contributed tasks [#7996](https://github.com/eclipse-theia/theia/pull/7996)
+- [terminal] fixed xterm issue causing an extraneous 'cursor-like' overlay element [#8204](https://github.com/eclipse-theia/theia/pull/8204)
+- [test] improved api-tests by increasing timeout so plugin views can be properly prepared [#8151](https://github.com/eclipse-theia/theia/pull/8151)
+- [test] updated api-tests to use tmp directory for user data [#8151](https://github.com/eclipse-theia/theia/pull/8151)
+- [vsx-registry] fixed the `licenseUrl` link for builtin and installed extensions [#8095](https://github.com/eclipse-theia/theia/pull/8095)
+- [vsx-registry] improved styling of the detailed extension view [#8086](https://github.com/eclipse-theia/theia/pull/8086)
+- [workspace] improved extensibility of menu and keybinding contributions [#8188](https://github.com/eclipse-theia/theia/pull/8188)
 
-Breaking Changes:
+<a name="breaking_changes_1.4.0">[Breaking Changes:](#breaking_changes_1.4.0)</a>
 
 - [core] fixed typo (`matchKeybiding` to `matchKeybinding`) in `KeybindingRegistry` [#8193](https://github.com/eclipse-theia/theia/pull/8193)
+- [preferences] removed unused variable `PreferencesWidget.COMMAND_LABEL` [#8249](https://github.com/eclipse-theia/theia/pull/8249)
+- [preferences] renamed file `preference-contribution.ts` to `preferences-contribution.ts` [#8237](https://github.com/eclipse-theia/theia/pull/8237)
 - [terminal] fixed typo (`rezize` to `resize`) in `TerminalWidget` [#8193](https://github.com/eclipse-theia/theia/pull/8193)
 <a name="1_4_0_replace_json"></a>
 - [[json]](#1_4_0_replace_json) replaced `@theia/json` Theia extension with `vscode.json-language-features` VS Code extension [#8112](https://github.com/eclipse-theia/theia/pull/8112)

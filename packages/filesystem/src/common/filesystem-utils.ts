@@ -14,29 +14,10 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { FileStat } from './filesystem';
+import { FileStat } from '../common/files';
 import URI from '@theia/core/lib/common/uri';
-import { Path } from '@theia/core/lib/common';
 
 export namespace FileSystemUtils {
-
-    /**
-     * Tildify path, replacing `home` with `~` if user's `home` is present at the beginning of the path.
-     * This is a non-operation for Windows.
-     *
-     * @param resourcePath
-     * @param home
-     */
-    export function tildifyPath(resourcePath: string, home: string): string {
-        const path = new Path(resourcePath);
-        const isWindows = path.root && Path.isDrive(path.root.base);
-
-        if (!isWindows && home && resourcePath.indexOf(`${home}/`) === 0) {
-            return resourcePath.replace(`${home}/`, '~/');
-        }
-
-        return resourcePath;
-    }
 
     /**
      * Generate unique URI for a given parent which does not collide
@@ -47,7 +28,7 @@ export namespace FileSystemUtils {
      * @param ext the resource extension
      */
     export function generateUniqueResourceURI(parentUri: URI, parent: FileStat, name: string, ext: string = ''): URI {
-        const children = !parent.children ? [] : parent.children!.map(child => new URI(child.uri));
+        const children = !parent.children ? [] : parent.children!.map(child => child.resource);
 
         let index = 1;
         let base = name + ext;

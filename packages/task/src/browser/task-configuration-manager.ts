@@ -26,9 +26,9 @@ import { TaskConfigurationModel } from './task-configuration-model';
 import { TaskTemplateSelector } from './task-templates';
 import { TaskCustomization, TaskConfiguration, TaskConfigurationScope, TaskScope } from '../common/task-protocol';
 import { WorkspaceVariableContribution } from '@theia/workspace/lib/browser/workspace-variable-contribution';
-import { FileSystem, FileSystemError } from '@theia/filesystem/lib/common';
 import { FileChangeType } from '@theia/filesystem/lib/common/filesystem-watcher-protocol';
 import { PreferenceConfigurations } from '@theia/core/lib/browser/preferences/preference-configurations';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
 
 export interface TasksChange {
     scope: TaskConfigurationScope;
@@ -50,8 +50,8 @@ export class TaskConfigurationManager {
     @inject(QuickPickService)
     protected readonly quickPick: QuickPickService;
 
-    @inject(FileSystem)
-    protected readonly filesystem: FileSystem;
+    @inject(FileService)
+    protected readonly fileService: FileService;
 
     @inject(PreferenceProvider) @named(PreferenceScope.Folder)
     protected readonly folderPreferences: PreferenceProvider;
@@ -93,7 +93,7 @@ export class TaskConfigurationManager {
         const roots = await this.workspaceService.roots;
         const toDelete = new Set(this.models.keys());
         for (const rootStat of roots) {
-            const key = rootStat.uri;
+            const key = rootStat.resource.toString();
             toDelete.delete(key);
             if (!this.models.has(key)) {
                 const model = new TaskConfigurationModel(key, this.folderPreferences);
@@ -185,28 +185,14 @@ export class TaskConfigurationManager {
     protected async doCreate(model: TaskConfigurationModel): Promise<URI | undefined> {
         const content = await this.getInitialConfigurationContent();
         if (content) {
-            await this.folderPreferences.setPreference('tasks', {}, model.getWorkspaceFolder()); // create dummy tasks.json in the correct place
-            const { configUri } = this.folderPreferences.resolve('tasks', model.getWorkspaceFolder()); // get uri to write content to it
+            await model.preferences.setPreference('tasks', {}, model.getWorkspaceFolder()); // create dummy tasks.json in the correct place
+            const { configUri } = model.preferences.resolve('tasks', model.getWorkspaceFolder()); // get uri to write content to it
 
-            let uri: URI;
-            if (configUri && configUri.path.base === 'tasks.json') {
-                uri = configUri;
-            } else { // fallback
-                uri = new URI(model.getWorkspaceFolder()).resolve(`${this.preferenceConfigurations.getPaths()[0]}/tasks.json`);
+            if (!configUri || configUri.path.base !== 'tasks.json') {
+                return undefined;
             }
-
-            const fileStat = await this.filesystem.getFileStat(uri.toString());
-            if (!fileStat) {
-                throw new Error(`file not found: ${uri.toString()}`);
-            }
-            try {
-                this.filesystem.setContent(fileStat, content);
-            } catch (e) {
-                if (!FileSystemError.FileExists.is(e)) {
-                    throw e;
-                }
-            }
-            return uri;
+            await this.fileService.write(configUri, content);
+            return configUri;
         }
     }
 

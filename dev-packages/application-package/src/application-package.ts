@@ -21,6 +21,7 @@ import { Extension, ExtensionPackage, RawExtensionPackage } from './extension-pa
 import { ExtensionPackageCollector } from './extension-package-collector';
 import { ApplicationProps } from './application-props';
 import { existsSync } from 'fs';
+const merge = require('deepmerge');
 
 // tslint:disable:no-implicit-dependencies
 
@@ -88,7 +89,7 @@ export class ApplicationPackage {
             theia.target = defaultTarget;
         }
 
-        return this._props = { ...ApplicationProps.DEFAULT, ...theia };
+        return this._props = merge(ApplicationProps.DEFAULT, theia);
     }
 
     protected _pck: NodePackage | undefined;
@@ -103,6 +104,7 @@ export class ApplicationPackage {
     protected _frontendElectronModules: Map<string, string> | undefined;
     protected _backendModules: Map<string, string> | undefined;
     protected _backendElectronModules: Map<string, string> | undefined;
+    protected _electronMainModules: Map<string, string> | undefined;
     protected _extensionPackages: ReadonlyArray<ExtensionPackage> | undefined;
 
     /**
@@ -162,6 +164,13 @@ export class ApplicationPackage {
             this._backendElectronModules = this.computeModules('backendElectron', 'backend');
         }
         return this._backendElectronModules;
+    }
+
+    get electronMainModules(): Map<string, string> {
+        if (!this._electronMainModules) {
+            this._electronMainModules = this.computeModules('electronMain');
+        }
+        return this._electronMainModules;
     }
 
     protected computeModules<P extends keyof Extension, S extends keyof Extension = P>(primary: P, secondary?: S): Map<string, string> {
@@ -237,6 +246,10 @@ export class ApplicationPackage {
 
     get targetFrontendModules(): Map<string, string> {
         return this.ifBrowser(this.frontendModules, this.frontendElectronModules);
+    }
+
+    get targetElectronMainModules(): Map<string, string> {
+        return this.ifElectron(this.electronMainModules, new Map());
     }
 
     setDependency(name: string, version: string | undefined): boolean {

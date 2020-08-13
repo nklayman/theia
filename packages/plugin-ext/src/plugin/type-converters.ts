@@ -23,7 +23,7 @@ import {
     ResourceTextEditDto, Selection, TaskDto, WorkspaceEditDto
 } from '../common/plugin-api-rpc';
 import * as model from '../common/plugin-api-rpc-model';
-import { LanguageFilter, LanguageSelector, RelativePattern } from '@theia/languages/lib/common/language-selector';
+import { LanguageFilter, LanguageSelector, RelativePattern } from '@theia/callhierarchy/lib/common/language-selector';
 import { isMarkdownString, MarkdownString } from './markdown-string';
 import { Item } from './quick-open';
 import * as types from './types-impl';
@@ -316,24 +316,6 @@ export function fromTextEdit(edit: theia.TextEdit): model.TextEdit {
     };
 }
 
-export function fromLanguageSelector(selector: undefined): undefined;
-export function fromLanguageSelector(selector: theia.DocumentSelector): LanguageSelector;
-export function fromLanguageSelector(selector: undefined | theia.DocumentSelector): undefined | LanguageSelector {
-    if (!selector) {
-        return undefined;
-    } else if (Array.isArray(selector)) {
-        return <LanguageSelector>selector.map(fromLanguageSelector);
-    } else if (typeof selector === 'string') {
-        return selector;
-    } else {
-        return <LanguageFilter>{
-            language: selector.language,
-            scheme: selector.scheme,
-            pattern: fromGlobPattern(selector.pattern!)
-        };
-    }
-}
-
 export function convertDiagnosticToMarkerData(diagnostic: theia.Diagnostic): model.MarkerData {
     return {
         code: convertCode(diagnostic.code),
@@ -422,11 +404,27 @@ export function fromDefinitionLink(definitionLink: theia.DefinitionLink): model.
     };
 }
 
-export function fromDocumentLink(definitionLink: theia.DocumentLink): model.DocumentLink {
-    return <model.DocumentLink>{
-        range: fromRange(definitionLink.range),
-        url: definitionLink.target && definitionLink.target.toString()
-    };
+export namespace DocumentLink {
+
+    export function from(link: theia.DocumentLink): model.DocumentLink {
+        return {
+            range: fromRange(link.range),
+            url: link.target,
+            tooltip: link.tooltip
+        };
+    }
+
+    export function to(link: model.DocumentLink): theia.DocumentLink {
+        let target: URI | undefined = undefined;
+        if (link.url) {
+            try {
+                target = typeof link.url === 'string' ? URI.parse(link.url, true) : URI.revive(link.url);
+            } catch (err) {
+                // ignore
+            }
+        }
+        return new types.DocumentLink(toRange(link.range), target);
+    }
 }
 
 export function fromDocumentHighlightKind(kind?: theia.DocumentHighlightKind): model.DocumentHighlightKind | undefined {

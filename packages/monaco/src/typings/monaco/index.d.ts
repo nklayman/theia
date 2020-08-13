@@ -24,7 +24,23 @@ declare module monaco.instantiation {
     }
 }
 
+declare module monaco.textModel {
+    interface ITextStream {
+        on(event: 'data', callback: (data: string) => void): void;
+        on(event: 'error', callback: (err: Error) => void): void;
+        on(event: 'end', callback: () => void): void;
+        on(event: string, callback: any): void;
+    }
+    // https://github.com/microsoft/vscode/blob/e683ace9e5acadba0e8bde72d793cb2cb83e58a7/src/vs/editor/common/model/textModel.ts#L58
+    export function createTextBufferFactoryFromStream(stream: ITextStream, filter?: (chunk: any) => string, validator?: (chunk: any) => Error | undefined): Promise<monaco.editor.ITextBufferFactory>;
+}
+
 declare module monaco.editor {
+
+    // https://github.com/microsoft/vscode/blob/e683ace9e5acadba0e8bde72d793cb2cb83e58a7/src/vs/editor/common/model.ts#L1263
+    export interface ITextBufferFactory {
+        getFirstLineText(lengthLimit: number): string;
+    }
 
     export interface ICodeEditor {
         protected readonly _instantiationService: monaco.instantiation.IInstantiationService;
@@ -344,6 +360,11 @@ declare module monaco.editor {
         after?: IContentDecorationRenderOptions;
     }
 
+    // https://github.com/microsoft/vscode/blob/e683ace9e5acadba0e8bde72d793cb2cb83e58a7/src/vs/editor/common/model.ts#L522
+    export interface ITextSnapshot {
+        read(): string | null;
+    }
+
     export interface ITextModel {
         /**
          * Get the tokens for the line `lineNumber`.
@@ -359,6 +380,9 @@ declare module monaco.editor {
          */
         // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/editor/common/model.ts#L806-L810
         forceTokenization(lineNumber: number): void;
+
+        // https://github.com/microsoft/vscode/blob/e683ace9e5acadba0e8bde72d793cb2cb83e58a7/src/vs/editor/common/model.ts#L623
+        createSnapshot(): ITextSnapshot | null;
     }
 
 }
@@ -718,6 +742,17 @@ declare module monaco.services {
         read(filter?: { owner?: string; resource?: monaco.Uri; severities?: number, take?: number; }): editor.IMarker[];
     }
 
+    // https://github.com/microsoft/vscode/blob/e683ace9e5acadba0e8bde72d793cb2cb83e58a7/src/vs/editor/common/services/modelService.ts#L18
+    export interface IModelService {
+        createModel(value: string | monaco.editor.ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: monaco.URI, isForSimpleWidget?: boolean): monaco.editor.ITextModel;
+        updateModel(model: monaco.editor.ITextModel, value: string | monaco.editor.ITextBufferFactory): void;
+    }
+
+    // https://github.com/microsoft/vscode/blob/2277c8e2a3e1cc630a6397301ba54a1dccd8a60d/src/vs/editor/common/services/editorWorkerService.ts#L21
+    export interface IEditorWorkerService {
+        computeMoreMinimalEdits(resource: monaco.Uri, edits: monaco.languages.TextEdit[] | null | undefined): Promise<monaco.languages.TextEdit[] | undefined>;
+    }
+
     // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/editor/standalone/browser/standaloneServices.ts#L56
     export module StaticServices {
         export function init(overrides: monaco.editor.IEditorOverrideServices): [ServiceCollection, monaco.instantiation.IInstantiationService];
@@ -728,6 +763,8 @@ declare module monaco.services {
         export const resourcePropertiesService: LazyStaticService<ITextResourcePropertiesService>;
         export const instantiationService: LazyStaticService<monaco.instantiation.IInstantiationService>;
         export const markerService: LazyStaticService<IMarkerService>;
+        export const modelService: LazyStaticService<IModelService>;
+        export const editorWorkerService: LazyStaticService<IEditorWorkerService>;
     }
 }
 
@@ -747,6 +784,10 @@ declare module monaco.theme {
     // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/platform/theme/common/themeService.ts#L25
     export interface ThemeIcon {
         readonly id: string;
+    }
+    export namespace ThemeIcon {
+        export function fromString(value: string): ThemeIcon | undefined;
+        export function asClassName(icon: ThemeIcon): string | undefined;
     }
 }
 
@@ -1347,6 +1388,11 @@ declare module monaco.mime {
 declare module monaco.error {
     // https://github.com/theia-ide/vscode/blob/standalone/0.19.x/src/vs/base/common/errors.ts#L77
     export function onUnexpectedError(e: any): undefined;
+}
+
+declare module monaco.path {
+    // https://github.com/microsoft/vscode/blob/320fbada86c113835aef4fb9d7c4bc5b74678166/src/vs/base/common/path.ts#L1494
+    export function normalize(path: string): string;
 }
 
 declare module monaco.wordHelper {

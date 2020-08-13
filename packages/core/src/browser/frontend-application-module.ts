@@ -92,6 +92,9 @@ import { TreeLabelProvider } from './tree/tree-label-provider';
 import { ProgressBar } from './progress-bar';
 import { ProgressBarFactory, ProgressBarOptions } from './progress-bar-factory';
 import { CommandOpenHandler } from './command-open-handler';
+import { LanguageService } from './language-service';
+import { EncodingRegistry } from './encoding-registry';
+import { EncodingService } from '../common/encoding-service';
 
 export { bindResourceProvider, bindMessageService, bindPreferenceService };
 
@@ -153,6 +156,7 @@ export const frontendApplicationModule = new ContainerModule((bind, unbind, isBo
 
     bindContributionProvider(bind, TabBarDecorator);
     bind(TabBarDecoratorService).toSelf().inSingletonScope();
+    bind(FrontendApplicationContribution).toService(TabBarDecoratorService);
 
     bindContributionProvider(bind, OpenHandler);
     bind(DefaultOpenerService).toSelf().inSingletonScope();
@@ -209,6 +213,11 @@ export const frontendApplicationModule = new ContainerModule((bind, unbind, isBo
         return messages;
     });
 
+    bind(LanguageService).toSelf().inSingletonScope();
+
+    bind(EncodingService).toSelf().inSingletonScope();
+    bind(EncodingRegistry).toSelf().inSingletonScope();
+
     bind(ResourceContextKey).toSelf().inSingletonScope();
     bind(CommonFrontendContribution).toSelf().inSingletonScope();
     [FrontendApplicationContribution, CommandContribution, KeybindingContribution, MenuContribution, ColorContribution].forEach(serviceIdentifier =>
@@ -248,7 +257,8 @@ export const frontendApplicationModule = new ContainerModule((bind, unbind, isBo
     bindContributionProvider(bind, LabelProviderContribution);
     bind(LabelProvider).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(LabelProvider);
-    bind(LabelProviderContribution).to(DefaultUriLabelProviderContribution).inSingletonScope();
+    bind(DefaultUriLabelProviderContribution).toSelf().inSingletonScope();
+    bind(LabelProviderContribution).toService(DefaultUriLabelProviderContribution);
     bind(LabelProviderContribution).to(DiffUriLabelProviderContribution).inSingletonScope();
 
     bind(TreeLabelProvider).toSelf().inSingletonScope();

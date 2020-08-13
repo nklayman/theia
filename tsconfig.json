@@ -70,9 +70,6 @@
       "@theia/keymaps/lib/*": [
         "packages/keymaps/src/*"
       ],
-      "@theia/languages/lib/*": [
-        "packages/languages/src/*"
-      ],
       "@theia/markers/lib/*": [
         "packages/markers/src/*"
       ],
@@ -165,6 +162,9 @@
       ],
       "@theia/example-tauri/*": [
         "examples/tauri/*"
+      ],
+      "@theia/languages/*": [
+        "packages/languages/*"
       ]
     }
   }

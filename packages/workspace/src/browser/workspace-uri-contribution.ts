@@ -17,7 +17,7 @@
 import { DefaultUriLabelProviderContribution, URIIconReference } from '@theia/core/lib/browser/label-provider';
 import URI from '@theia/core/lib/common/uri';
 import { injectable, inject, postConstruct } from 'inversify';
-import { FileStat } from '@theia/filesystem/lib/common';
+import { FileStat } from '@theia/filesystem/lib/common/files';
 import { WorkspaceVariableContribution } from './workspace-variable-contribution';
 
 @injectable()
@@ -27,7 +27,7 @@ export class WorkspaceUriLabelProviderContribution extends DefaultUriLabelProvid
     protected readonly workspaceVariable: WorkspaceVariableContribution;
 
     @postConstruct()
-    protected async init(): Promise<void> {
+    async init(): Promise<void> {
         // no-op, backward compatibility
     }
 
@@ -51,20 +51,26 @@ export class WorkspaceUriLabelProviderContribution extends DefaultUriLabelProvid
      */
     getLongName(element: URI | URIIconReference | FileStat): string | undefined {
         const uri = this.getUri(element);
+        if (uri) {
+            const formatting = this.findFormatting(uri);
+            if (formatting) {
+                return this.formatUri(uri, formatting);
+            }
+        }
         const relativePath = uri && this.workspaceVariable.getWorkspaceRelativePath(uri);
         return relativePath || super.getLongName(this.asURIIconReference(element));
     }
 
     protected asURIIconReference(element: URI | URIIconReference | FileStat): URI | URIIconReference {
         if (FileStat.is(element)) {
-            return URIIconReference.create(element.isDirectory ? 'folder' : 'file', new URI(element.uri));
+            return URIIconReference.create(element.isDirectory ? 'folder' : 'file', element.resource);
         }
         return element;
     }
 
     protected getUri(element: URI | URIIconReference | FileStat): URI | undefined {
         if (FileStat.is(element)) {
-            return new URI(element.uri);
+            return element.resource;
         }
         return super.getUri(element);
     }

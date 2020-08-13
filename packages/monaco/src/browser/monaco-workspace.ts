@@ -18,35 +18,23 @@
 
 import { URI as Uri } from 'vscode-uri';
 import { injectable, inject, postConstruct } from 'inversify';
-import { ProtocolToMonacoConverter, MonacoToProtocolConverter, testGlob } from 'monaco-languageclient';
 import URI from '@theia/core/lib/common/uri';
-import { DisposableCollection } from '@theia/core/lib/common';
-import { FileSystem, FileStat, } from '@theia/filesystem/lib/common';
-import { FileChangeType, FileSystemWatcher } from '@theia/filesystem/lib/browser';
-import { WorkspaceService } from '@theia/workspace/lib/browser';
-import { EditorManager, EditorOpenerOptions } from '@theia/editor/lib/browser';
-import * as lang from '@theia/languages/lib/browser';
-import { Emitter, TextDocumentWillSaveEvent, TextEdit } from '@theia/languages/lib/browser';
+import { Emitter } from '@theia/core/lib/common/event';
+import { FileSystemPreferences } from '@theia/filesystem/lib/browser';
+import { EditorManager } from '@theia/editor/lib/browser';
 import { MonacoTextModelService } from './monaco-text-model-service';
 import { WillSaveMonacoModelEvent, MonacoEditorModel, MonacoModelContentChangedEvent } from './monaco-editor-model';
 import { MonacoEditor } from './monaco-editor';
-import { MonacoConfigurations } from './monaco-configurations';
 import { ProblemManager } from '@theia/markers/lib/browser';
 import { MaybePromise } from '@theia/core/lib/common/types';
-
-export interface MonacoDidChangeTextDocumentParams extends lang.DidChangeTextDocumentParams {
-    readonly textDocument: MonacoEditorModel;
-}
-
-export interface MonacoTextDocumentWillSaveEvent extends TextDocumentWillSaveEvent {
-    readonly textDocument: MonacoEditorModel;
-}
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import { FileSystemProviderCapabilities } from '@theia/filesystem/lib/common/files';
 
 // Note: `newUri` and `oldUri` are both optional although it is mandatory in `monaco.languages.ResourceFileEdit`.
 // See: https://github.com/microsoft/monaco-editor/issues/1396
 export interface ResourceEdit {
-    readonly newUri?: string;
-    readonly oldUri?: string;
+    readonly newUri?: URI;
+    readonly oldUri?: URI;
     readonly options?: {
         readonly overwrite?: boolean;
         readonly ignoreIfNotExists?: boolean;
@@ -56,37 +44,33 @@ export interface ResourceEdit {
 }
 
 export interface CreateResourceEdit extends ResourceEdit {
-    readonly newUri: string;
+    readonly newUri: URI;
 }
 export namespace CreateResourceEdit {
     export function is(arg: Edit): arg is CreateResourceEdit {
-        return 'newUri' in arg
-            && typeof (arg as any).newUri === 'string' // eslint-disable-line @typescript-eslint/no-explicit-any
-            && (!('oldUri' in arg) || typeof (arg as any).oldUri === 'undefined'); // eslint-disable-line @typescript-eslint/no-explicit-any
+        return ('newUri' in arg && (arg as any).newUri instanceof URI) && // eslint-disable-line @typescript-eslint/no-explicit-any
+            !('oldUri' in arg && (arg as any).oldUri instanceof URI); // eslint-disable-line @typescript-eslint/no-explicit-any
     }
 }
 
 export interface DeleteResourceEdit extends ResourceEdit {
-    readonly oldUri: string;
+    readonly oldUri: URI;
 }
 export namespace DeleteResourceEdit {
     export function is(arg: Edit): arg is DeleteResourceEdit {
-        return 'oldUri' in arg
-            && typeof (arg as any).oldUri === 'string' // eslint-disable-line @typescript-eslint/no-explicit-any
-            && (!('newUri' in arg) || typeof (arg as any).newUri === 'undefined'); // eslint-disable-line @typescript-eslint/no-explicit-any
+        return !('newUri' in arg && (arg as any).newUri instanceof URI) && // eslint-disable-line @typescript-eslint/no-explicit-any
+            ('oldUri' in arg && (arg as any).oldUri instanceof URI); // eslint-disable-line @typescript-eslint/no-explicit-any
     }
 }
 
 export interface RenameResourceEdit extends ResourceEdit {
-    readonly newUri: string;
-    readonly oldUri: string;
+    readonly newUri: URI;
+    readonly oldUri: URI;
 }
 export namespace RenameResourceEdit {
     export function is(arg: Edit): arg is RenameResourceEdit {
-        return 'oldUri' in arg
-            && typeof (arg as any).oldUri === 'string' // eslint-disable-line @typescript-eslint/no-explicit-any
-            && 'newUri' in arg
-            && typeof (arg as any).newUri === 'string'; // eslint-disable-line @typescript-eslint/no-explicit-any
+        return ('newUri' in arg && (arg as any).newUri instanceof URI) && // eslint-disable-line @typescript-eslint/no-explicit-any
+            ('oldUri' in arg && (arg as any).oldUri instanceof URI); // eslint-disable-line @typescript-eslint/no-explicit-any
     }
 }
 
@@ -130,14 +114,7 @@ export interface WorkspaceFolder {
 }
 
 @injectable()
-export class MonacoWorkspace implements lang.Workspace {
-
-    readonly capabilities = {
-        applyEdit: true,
-        workspaceEdit: {
-            documentChanges: true
-        }
-    };
+export class MonacoWorkspace {
 
     protected resolveReady: () => void;
     readonly ready = new Promise<void>(resolve => {
@@ -150,99 +127,38 @@ export class MonacoWorkspace implements lang.Workspace {
     protected readonly onDidCloseTextDocumentEmitter = new Emitter<MonacoEditorModel>();
     readonly onDidCloseTextDocument = this.onDidCloseTextDocumentEmitter.event;
 
-    protected readonly onDidChangeTextDocumentEmitter = new Emitter<MonacoDidChangeTextDocumentParams>();
+    protected readonly onDidChangeTextDocumentEmitter = new Emitter<MonacoModelContentChangedEvent>();
     readonly onDidChangeTextDocument = this.onDidChangeTextDocumentEmitter.event;
 
-    protected readonly onWillSaveTextDocumentEmitter = new Emitter<MonacoTextDocumentWillSaveEvent>();
+    protected readonly onWillSaveTextDocumentEmitter = new Emitter<WillSaveMonacoModelEvent>();
     readonly onWillSaveTextDocument = this.onWillSaveTextDocumentEmitter.event;
 
     protected readonly onDidSaveTextDocumentEmitter = new Emitter<MonacoEditorModel>();
     readonly onDidSaveTextDocument = this.onDidSaveTextDocumentEmitter.event;
 
-    protected readonly onDidChangeWorkspaceFoldersEmitter = new Emitter<WorkspaceFoldersChangeEvent>();
-    readonly onDidChangeWorkspaceFolders = this.onDidChangeWorkspaceFoldersEmitter.event;
+    @inject(FileService)
+    protected readonly fileService: FileService;
 
-    @inject(FileSystem)
-    protected readonly fileSystem: FileSystem;
-
-    @inject(WorkspaceService)
-    protected readonly workspaceService: WorkspaceService;
-
-    @inject(FileSystemWatcher)
-    protected readonly fileSystemWatcher: FileSystemWatcher;
+    @inject(FileSystemPreferences)
+    protected readonly filePreferences: FileSystemPreferences;
 
     @inject(MonacoTextModelService)
     protected readonly textModelService: MonacoTextModelService;
 
-    @inject(MonacoToProtocolConverter)
-    protected readonly m2p: MonacoToProtocolConverter;
-
-    @inject(ProtocolToMonacoConverter)
-    protected readonly p2m: ProtocolToMonacoConverter;
-
     @inject(EditorManager)
     protected readonly editorManager: EditorManager;
-
-    @inject(MonacoConfigurations)
-    readonly configurations: MonacoConfigurations;
 
     @inject(ProblemManager)
     protected readonly problems: ProblemManager;
 
-    protected _workspaceFolders: WorkspaceFolder[] = [];
-    get workspaceFolders(): WorkspaceFolder[] {
-        return this._workspaceFolders;
-    }
-
     @postConstruct()
-    protected async init(): Promise<void> {
-        const roots = await this.workspaceService.roots;
-        this.updateWorkspaceFolders(roots);
+    protected init(): void {
         this.resolveReady();
-
-        this.workspaceService.onWorkspaceChanged(async newRootDirs => {
-            this.updateWorkspaceFolders(newRootDirs);
-        });
 
         for (const model of this.textModelService.models) {
             this.fireDidOpen(model);
         }
         this.textModelService.onDidCreate(model => this.fireDidOpen(model));
-    }
-
-    protected updateWorkspaceFolders(newRootDirs: FileStat[]): void {
-        const oldWorkspaceUris = this.workspaceFolders.map(folder => folder.uri.toString());
-        const newWorkspaceUris = newRootDirs.map(folder => folder.uri);
-        const added = newWorkspaceUris.filter(uri => oldWorkspaceUris.indexOf(uri) < 0).map((dir, index) => this.toWorkspaceFolder(dir, index));
-        const removed = oldWorkspaceUris.filter(uri => newWorkspaceUris.indexOf(uri) < 0).map((dir, index) => this.toWorkspaceFolder(dir, index));
-        this._workspaceFolders = newWorkspaceUris.map(this.toWorkspaceFolder);
-        this.onDidChangeWorkspaceFoldersEmitter.fire({ added, removed });
-    }
-
-    protected toWorkspaceFolder(uriString: string, index: number): WorkspaceFolder {
-        const uri = Uri.parse(uriString);
-        const path = uri.path;
-        return {
-            uri,
-            name: path.substring(path.lastIndexOf('/') + 1),
-            index
-        };
-    }
-
-    get rootUri(): string | null {
-        if (this._workspaceFolders.length > 0) {
-            return this._workspaceFolders[0].uri.toString();
-        } else {
-            return null;
-        }
-    }
-
-    get rootPath(): string | null {
-        if (this._workspaceFolders.length > 0) {
-            return new URI(this._workspaceFolders[0].uri).path.toString();
-        } else {
-            return null;
-        }
     }
 
     get textDocuments(): MonacoEditorModel[] {
@@ -281,48 +197,18 @@ export class MonacoWorkspace implements lang.Workspace {
     }
 
     protected fireDidChangeContent(event: MonacoModelContentChangedEvent): void {
-        const { model, contentChanges } = event;
-        this.onDidChangeTextDocumentEmitter.fire({
-            textDocument: model,
-            contentChanges
-        });
+        this.onDidChangeTextDocumentEmitter.fire(event);
     }
 
     protected fireWillSave(event: WillSaveMonacoModelEvent): void {
-        const { reason } = event;
-        const timeout = new Promise<TextEdit[]>(resolve =>
-            setTimeout(() => resolve([]), 1000)
-        );
-        const resolveEdits = new Promise<TextEdit[]>(async resolve => {
-            const thenables: Thenable<TextEdit[]>[] = [];
-            const allEdits: TextEdit[] = [];
-
-            this.onWillSaveTextDocumentEmitter.fire({
-                textDocument: event.model,
-                reason,
-                waitUntil: thenable => {
-                    thenables.push(thenable);
-                }
-            });
-
-            for (const listenerEdits of await Promise.all(thenables)) {
-                allEdits.push(...listenerEdits);
-            }
-
-            resolve(allEdits);
-        });
-        event.waitUntil(
-            Promise.race([resolveEdits, timeout]).then(edits =>
-                this.p2m.asTextEdits(edits).map(edit => edit as monaco.editor.IIdentifiedSingleEditOperation)
-            )
-        );
+        this.onWillSaveTextDocumentEmitter.fire(event);
     }
 
     protected fireDidSave(model: MonacoEditorModel): void {
         this.onDidSaveTextDocumentEmitter.fire(model);
     }
 
-    protected suppressedOpenIfDirty: MonacoEditorModel[] = [];
+    protected readonly suppressedOpenIfDirty: MonacoEditorModel[] = [];
 
     protected openEditorIfDirty(model: MonacoEditorModel): void {
         if (this.suppressedOpenIfDirty.indexOf(model) !== -1) {
@@ -332,9 +218,12 @@ export class MonacoWorkspace implements lang.Workspace {
             // create a new reference to make sure the model is not disposed before it is
             // acquired by the editor, thus losing the changes that made it dirty.
             this.textModelService.createModelReference(model.textEditorModel.uri).then(ref => {
-                this.editorManager.open(new URI(model.uri), {
-                    mode: 'open',
-                }).then(editor => ref.dispose());
+                (
+                    model.autoSave === 'on' ? new Promise(resolve => model.onDidSaveModel(resolve)) :
+                        this.editorManager.open(new URI(model.uri), { mode: 'open' })
+                ).then(
+                    () => ref.dispose()
+                );
             });
         }
     }
@@ -349,49 +238,6 @@ export class MonacoWorkspace implements lang.Workspace {
                 this.suppressedOpenIfDirty.splice(i, 1);
             }
         }
-    }
-
-    createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): lang.FileSystemWatcher {
-        const disposables = new DisposableCollection();
-        const onDidCreateEmitter = new lang.Emitter<Uri>();
-        disposables.push(onDidCreateEmitter);
-        const onDidChangeEmitter = new lang.Emitter<Uri>();
-        disposables.push(onDidChangeEmitter);
-        const onDidDeleteEmitter = new lang.Emitter<Uri>();
-        disposables.push(onDidDeleteEmitter);
-        disposables.push(this.fileSystemWatcher.onFilesChanged(changes => {
-            for (const change of changes) {
-                const fileChangeType = change.type;
-                if (ignoreCreateEvents === true && fileChangeType === FileChangeType.ADDED) {
-                    continue;
-                }
-                if (ignoreChangeEvents === true && fileChangeType === FileChangeType.UPDATED) {
-                    continue;
-                }
-                if (ignoreDeleteEvents === true && fileChangeType === FileChangeType.DELETED) {
-                    continue;
-                }
-                const uri = change.uri.toString();
-                const codeUri = change.uri['codeUri'];
-                if (testGlob(globPattern, uri)) {
-                    if (fileChangeType === FileChangeType.ADDED) {
-                        onDidCreateEmitter.fire(codeUri);
-                    } else if (fileChangeType === FileChangeType.UPDATED) {
-                        onDidChangeEmitter.fire(codeUri);
-                    } else if (fileChangeType === FileChangeType.DELETED) {
-                        onDidDeleteEmitter.fire(codeUri);
-                    } else {
-                        throw new Error(`Unexpected file change type: ${fileChangeType}.`);
-                    }
-                }
-            }
-        }));
-        return {
-            onDidCreate: onDidCreateEmitter.event,
-            onDidChange: onDidChangeEmitter.event,
-            onDidDelete: onDidDeleteEmitter.event,
-            dispose: () => disposables.dispose()
-        };
     }
 
     /**
@@ -411,37 +257,56 @@ export class MonacoWorkspace implements lang.Workspace {
         });
     }
 
-    async applyEdit(changes: lang.WorkspaceEdit, options?: EditorOpenerOptions): Promise<boolean> {
-        const workspaceEdit = this.p2m.asWorkspaceEdit(changes);
-        await this.applyBulkEdit(workspaceEdit, options);
-        return true;
-    }
-
-    async applyBulkEdit(workspaceEdit: monaco.languages.WorkspaceEdit, options?: EditorOpenerOptions): Promise<monaco.editor.IBulkEditResult> {
+    async applyBulkEdit(workspaceEdit: monaco.languages.WorkspaceEdit): Promise<monaco.editor.IBulkEditResult & { success: boolean }> {
         try {
-            const unresolvedEdits = this.groupEdits(workspaceEdit);
-            const edits = await this.openEditors(unresolvedEdits, options);
+            const edits = this.groupEdits(workspaceEdit);
             this.checkVersions(edits);
             let totalEdits = 0;
             let totalFiles = 0;
             for (const edit of edits) {
                 if (TextEdits.is(edit)) {
-                    const { editor } = (await this.toTextEditWithEditor(edit));
-                    const model = editor.document.textEditorModel;
-                    const currentSelections = editor.getControl().getSelections() || [];
-                    const editOperations: monaco.editor.IIdentifiedSingleEditOperation[] = edit.textEdits.map(e => ({
-                        identifier: undefined,
-                        forceMoveMarkers: false,
-                        range: new monaco.Range(e.range.startLineNumber, e.range.startColumn, e.range.endLineNumber, e.range.endColumn),
-                        text: e.text
-                    }));
-                    // start a fresh operation
-                    model.pushStackElement();
-                    model.pushEditOperations(currentSelections, editOperations, (_: monaco.editor.IIdentifiedSingleEditOperation[]) => currentSelections);
-                    // push again to make this change an undoable operation
-                    model.pushStackElement();
-                    totalFiles += 1;
-                    totalEdits += editOperations.length;
+                    let eol: monaco.editor.EndOfLineSequence | undefined;
+                    const editOperations: monaco.editor.IIdentifiedSingleEditOperation[] = [];
+                    const minimalEdits = await monaco.services.StaticServices.editorWorkerService.get().computeMoreMinimalEdits(monaco.Uri.parse(edit.uri), edit.textEdits);
+                    if (minimalEdits) {
+                        for (const textEdit of minimalEdits) {
+                            if (typeof textEdit.eol === 'number') {
+                                eol = textEdit.eol;
+                            }
+                            if (monaco.Range.isEmpty(textEdit.range) && !textEdit.text) {
+                                // skip no-op
+                                continue;
+                            }
+                            editOperations.push({
+                                forceMoveMarkers: false,
+                                range: monaco.Range.lift(textEdit.range),
+                                text: textEdit.text
+                            });
+                        }
+                    }
+                    if (!editOperations.length && eol === undefined) {
+                        continue;
+                    }
+                    const reference = await this.textModelService.createModelReference(new URI(edit.uri));
+                    try {
+                        const model = reference.object.textEditorModel;
+                        const editor = MonacoEditor.findByDocument(this.editorManager, reference.object)[0];
+                        const cursorState = editor?.getControl().getSelections() || [];
+                        // start a fresh operation
+                        model.pushStackElement();
+                        if (editOperations.length) {
+                            model.pushEditOperations(cursorState, editOperations, () => cursorState);
+                        }
+                        if (eol !== undefined) {
+                            model.pushEOL(eol);
+                        }
+                        // push again to make this change an undoable operation
+                        model.pushStackElement();
+                        totalFiles += 1;
+                        totalEdits += editOperations.length;
+                    } finally {
+                        reference.dispose();
+                    }
                 } else if (CreateResourceEdit.is(edit) || DeleteResourceEdit.is(edit) || RenameResourceEdit.is(edit)) {
                     await this.performResourceEdit(edit);
                 } else {
@@ -449,47 +314,23 @@ export class MonacoWorkspace implements lang.Workspace {
                 }
             }
             const ariaSummary = this.getAriaSummary(totalEdits, totalFiles);
-            return { ariaSummary };
+            return { ariaSummary, success: true };
         } catch (e) {
-            const ariaSummary = `Error applying workspace edits: ${e.toString()}`;
-            console.error(ariaSummary);
-            return { ariaSummary };
+            console.error('Failed to apply workspace edits:', e);
+            return {
+                ariaSummary: `Error applying workspace edits: ${e.toString()}`,
+                success: false
+            };
         }
-    }
-
-    protected async openEditors(edits: Edit[], options?: EditorOpenerOptions): Promise<Edit[]> {
-        const result = [];
-        for (const edit of edits) {
-            if (TextEdits.is(edit) && TextEdits.isVersioned(edit) && !EditsByEditor.is(edit)) {
-                result.push(await this.toTextEditWithEditor(edit, options));
-            } else {
-                result.push(edit);
-            }
-        }
-        return result;
-    }
-
-    protected async toTextEditWithEditor(textEdit: TextEdits, options?: EditorOpenerOptions): Promise<EditsByEditor> {
-        if (EditsByEditor.is(textEdit)) {
-            return textEdit;
-        }
-        const editorWidget = await this.editorManager.open(new URI(textEdit.uri), options);
-        const editor = MonacoEditor.get(editorWidget);
-        if (!editor) {
-            throw Error(`Could not open editor. URI: ${textEdit.uri}`);
-        }
-        const textEditWithEditor = { ...textEdit, editor };
-        return textEditWithEditor;
     }
 
     protected checkVersions(edits: Edit[]): void {
         for (const textEdit of edits.filter(TextEdits.is).filter(TextEdits.isVersioned)) {
-            if (!EditsByEditor.is(textEdit)) {
-                throw Error(`Could not open editor for URI: ${textEdit.uri}.`);
-            }
-            const model = textEdit.editor.document.textEditorModel;
-            if (textEdit.version !== undefined && model.getVersionId() !== textEdit.version) {
-                throw Error(`Version conflict in editor. URI: ${textEdit.uri}`);
+            if (typeof textEdit.version === 'number') {
+                const model = this.textModelService.get(textEdit.uri);
+                if (model && model.textEditorModel.getVersionId() !== textEdit.version) {
+                    throw new Error(`${model.uri} has changed in the meantime`);
+                }
             }
         }
     }
@@ -529,8 +370,8 @@ export class MonacoWorkspace implements lang.Workspace {
                 editorEdit.textEdits.push(...resourceTextEdit.edits);
             } else {
                 const { options } = edit;
-                const oldUri = !!edit.oldUri ? edit.oldUri.toString() : undefined;
-                const newUri = !!edit.newUri ? edit.newUri.toString() : undefined;
+                const oldUri = !!edit.oldUri ? new URI(edit.oldUri.toString()) : undefined;
+                const newUri = !!edit.newUri ? new URI(edit.newUri.toString()) : undefined;
                 result.push({
                     oldUri,
                     newUri,
@@ -545,33 +386,27 @@ export class MonacoWorkspace implements lang.Workspace {
         const options = edit.options || {};
         if (RenameResourceEdit.is(edit)) {
             // rename
-            if (options.overwrite === undefined && options.ignoreIfExists && await this.fileSystem.exists(edit.newUri)) {
+            if (options.overwrite === undefined && options.ignoreIfExists && await this.fileService.exists(edit.newUri)) {
                 return; // not overwriting, but ignoring, and the target file exists
             }
-            await this.fileSystem.move(edit.oldUri, edit.newUri, { overwrite: options.overwrite });
+            await this.fileService.move(edit.oldUri, edit.newUri, { overwrite: options.overwrite });
         } else if (DeleteResourceEdit.is(edit)) {
             // delete file
-            if (!options.ignoreIfNotExists || await this.fileSystem.exists(edit.oldUri)) {
-                if (options.recursive === false) {
-                    console.warn("Ignored 'recursive': 'false' option. Deleting recursively.");
+            if (await this.fileService.exists(edit.oldUri)) {
+                let useTrash = this.filePreferences['files.enableTrash'];
+                if (useTrash && !(this.fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
+                    useTrash = false; // not supported by provider
                 }
-                await this.fileSystem.delete(edit.oldUri);
+                await this.fileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });
+            } else if (!options.ignoreIfNotExists) {
+                throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
             }
         } else if (CreateResourceEdit.is(edit)) {
-            const exists = await this.fileSystem.exists(edit.newUri);
             // create file
-            if (options.overwrite === undefined && options.ignoreIfExists && exists) {
+            if (options.overwrite === undefined && options.ignoreIfExists && await this.fileService.exists(edit.newUri)) {
                 return; // not overwriting, but ignoring, and the target file exists
             }
-            if (exists && options.overwrite) {
-                const stat = await this.fileSystem.getFileStat(edit.newUri);
-                if (!stat) {
-                    throw new Error(`Cannot get file stat for the resource: ${edit.newUri}.`);
-                }
-                await this.fileSystem.setContent(stat, '');
-            } else {
-                await this.fileSystem.createFile(edit.newUri);
-            }
+            await this.fileService.create(edit.newUri, undefined, { overwrite: options.overwrite });
         }
     }
 

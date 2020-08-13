@@ -20,7 +20,7 @@ import { Message } from '@phosphor/messaging';
 import { injectable, inject, postConstruct } from 'inversify';
 import { DisposableCollection } from '@theia/core/lib/common/disposable';
 import {
-    BaseWidget, Widget, StatefulWidget, Panel, PanelLayout, MessageLoop, PreferenceChangeEvent
+    BaseWidget, Widget, StatefulWidget, Panel, PanelLayout, MessageLoop, PreferenceChangeEvent, CompositeTreeNode, SelectableTreeNode,
 } from '@theia/core/lib/browser';
 import { ScmCommitWidget } from './scm-commit-widget';
 import { ScmAmendWidget } from './scm-amend-widget';
@@ -38,9 +38,9 @@ export class ScmWidget extends BaseWidget implements StatefulWidget {
 
     @inject(ScmService) protected readonly scmService: ScmService;
     @inject(ScmCommitWidget) protected readonly commitWidget: ScmCommitWidget;
-    @inject(ScmTreeWidget) protected readonly resourceWidget: ScmTreeWidget;
+    @inject(ScmTreeWidget) readonly resourceWidget: ScmTreeWidget;
     @inject(ScmAmendWidget) protected readonly amendWidget: ScmAmendWidget;
-    @inject(ScmNoRepositoryWidget) protected readonly noRepositoryWidget: ScmNoRepositoryWidget;
+    @inject(ScmNoRepositoryWidget) readonly noRepositoryWidget: ScmNoRepositoryWidget;
     @inject(ScmPreferences) protected readonly scmPreferences: ScmPreferences;
 
     set viewMode(mode: 'tree' | 'list') {
@@ -171,4 +171,22 @@ export class ScmWidget extends BaseWidget implements StatefulWidget {
         this.resourceWidget.restoreState(changesTreeState);
     }
 
+    collapseScmTree(): void {
+        const { model } = this.resourceWidget;
+        const root = model.root;
+        if (CompositeTreeNode.is(root)) {
+            root.children.map(group => {
+                if (CompositeTreeNode.is(group)) {
+                    group.children.map(folderNode => {
+                        if (CompositeTreeNode.is(folderNode)) {
+                            model.collapseAll(folderNode);
+                        }
+                        if (SelectableTreeNode.isSelected(folderNode)) {
+                            model.toggleNode(folderNode);
+                        }
+                    });
+                }
+            });
+        }
+    }
 }
