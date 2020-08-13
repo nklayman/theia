@@ -1235,7 +1235,7 @@
     serialize-javascript "^1.4.0"
     webpack-sources "^1.0.1"
 
-"@theia/languages@^1.3.0":
+"@theia/languages@^1.4.0":
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/@theia/languages/-/languages-1.4.0.tgz#9d9034ccfc304bd9fb4380855e5695740227f189"
   integrity sha512-FKjzr9b7wVzvs6y5HJG9Ddu7ilScZwZXvRonEGu8ESxgicvf6vNjBZjHV2grSHdBE/PwYINfDGBfh9y2o9Obqw==
@@ -4010,10 +4010,10 @@ chokidar@3.3.0:
   optionalDependencies:
     fsevents "~2.1.1"
 
-chokidar@3.4.0:
-  version "3.4.0"
-  resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.4.0.tgz#b30611423ce376357c765b9b8f904b9fba3c0be8"
-  integrity sha512-aXAaho2VJtisB/1fg1+3nlLJqGOuewTzQpd/Tz0yTg2R0e4IGtshYvtjowyEumcBv2z+y4+kc75Mz7j5xJskcQ==
+chokidar@3.4.1:
+  version "3.4.1"
+  resolved "https://registry.yarnpkg.com/chokidar/-/chokidar-3.4.1.tgz#e905bdecf10eaa0a0b1db0c664481cc4cbc22ba1"
+  integrity sha512-TQTJyr2stihpC4Sya9hs2Xh+O2wf+igjL36Y75xx2WdHuiICcn/XJza46Jwt0eT5hVpQOzo3FpY3cj3RVYLX0g==
   dependencies:
     anymatch "~3.1.1"
     braces "~3.0.2"
@@ -14167,15 +14167,15 @@ tar@^6.0.1, tar@^6.0.2:
     mkdirp "^1.0.3"
     yallist "^4.0.0"
 
-tauri@^0.10.0:
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/tauri/-/tauri-0.10.0.tgz#b98408d6bc655294c1052b6c6d9c77f15586dd5d"
-  integrity sha512-PtLPofatxD97Qi7LRLQAiMh9N2D3CoVSZOil/KZHPUm1N0eJ55vpk9+VZfj/ux5EH4cmQDnMY9/IMfc9Lonq1Q==
+tauri@^0.11.0:
+  version "0.11.1"
+  resolved "https://registry.yarnpkg.com/tauri/-/tauri-0.11.1.tgz#a49cd1412ad42c810f812942aabd14b85500231a"
+  integrity sha512-rcnUBpK4vwfc+O0tQcFNNxd8ItHg0DH7CrtzTlWBukrHw7HxuoOQgzqu+o2+UZNlgL4togVky16UhUEG2Djgrw==
   dependencies:
     "@tauri-apps/tauri-inliner" "1.14.1"
     "@tauri-apps/toml" "2.2.4"
     chalk "4.1.0"
-    chokidar "3.4.0"
+    chokidar "3.4.1"
     cross-spawn "7.0.3"
     fast-glob "3.2.4"
     fs-extra "9.0.1"
